@@ -32,3 +32,5 @@ Don't forget to change the items.dat hash in "OnSuperMain"
 Some of functions aren't included, such as drop, and so on
 
 All the methods use async, that means the server will do a things before waiting another things. Make alot faster.
+
+Added growscan
