@@ -36,3 +36,5 @@ All the methods use async, that means the server will do a things before waiting
 Added growscan
 
 Worlds are not saved to the database, you need to add it urself
+
+Added solution file because many asked me to
