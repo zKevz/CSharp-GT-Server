@@ -1,4 +1,4 @@
-﻿using ENet.Managed;
+using ENet.Managed;
 using System;
 using System.Threading.Tasks;
 using static GTServer.Program;
@@ -311,18 +311,18 @@ namespace GTServer.Resources
         {
             try
             {
-                var player = peer.Data as Player;
-                Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnRemove"), "netID|" + player.NetID + "\n")); // ((Player*)(server->peers[i].data))->tankIDName
-                foreach (ENetPeer currentPeer in Peers)
-                {
-                    if (currentPeer.State != ENetPeerState.Connected)
-                        continue;
-                    if (peer.InWorld(currentPeer))
-                    {
-                        currentPeer.Send(p.Data, 0, ENetPacketFlags.Reliable);
-                        await currentPeer.OnConsoleMessage("`5<`w" + player.DisplayName + "`` left, `w" + CountPlayer(player.World) + "`` others here>``");
-                    }
-                }
+                //var player = peer.Data as Player;
+                //Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnRemove"), "netID|" + player.NetID + "\n")); // ((Player*)(server->peers[i].data))->tankIDName
+                //foreach (ENetPeer currentPeer in Peers)
+                //{
+                //    if (currentPeer.State != ENetPeerState.Connected)
+                //        continue;
+                //    if (peer.InWorld(currentPeer))
+                //    {
+                //        currentPeer.Send(p.Data, 0, ENetPacketFlags.Reliable);
+                //        await currentPeer.OnConsoleMessage("`5<`w" + player.DisplayName + "`` left, `w" + CountPlayer(player.World) + "`` others here>``");
+                //    }
+                //}
             }
             catch(Exception e)
             {
@@ -333,7 +333,6 @@ namespace GTServer.Resources
         {
             try
             {
-                act = act.ToUpper();
                 World info = WorldDatabase.GetWorld(act).WorldInfo;
                 string name = act;
                 if (name == "CON" || name == "PRN" || name == "AUX" || name == "NUL" || name == "COM1" || name == "COM2" || name == "COM3" || name == "COM4" || name == "COM5" || name == "COM6" || name == "COM7" || name == "COM8" || name == "COM9" || name == "LPT1" || name == "LPT2" || name == "LPT3" || name == "LPT4" || name == "LPT5" || name == "LPT6" || name == "LPT7" || name == "LPT8" || name == "LPT9" || name == "con" || name == "prn" || name == "aux" || name == "nul" || name == "com1" || name == "com2" || name == "com3" || name == "com4" || name == "com5" || name == "com6" || name == "com7" || name == "com8" || name == "com9" || name == "lpt1" || name == "lpt2" || name == "lpt3" || name == "lpt4" || name == "lpt5" || name == "lpt6" || name == "lpt7" || name == "lpt8" || name == "lpt9")
@@ -374,13 +373,12 @@ namespace GTServer.Resources
                     y = y2;
                 }
                 //enet_host_flush(server);
+                Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"), "spawn|avatar\nnetID|" + PeerNetID + "\nuserID|" + PeerNetID + "\ncolrect|0|0|20|30\nposXY|" + x + "|" + y + "\nname|``" + (peer.Data as Player).DisplayName + "``\ncountry|" + (peer.Data as Player).Country + "|" + 224 + "\ninvis|0\nmstate|0\nsmstate|1\ntype|local\n"));
+                peer.Send(p.Data, 0, ENetPacketFlags.Reliable);
+
                 (peer.Data as Player).NetID = PeerNetID;
                 await peer.OnPeerConnect();
-                Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"), "spawn|avatar\nnetID|" + PeerNetID + "\nuserID|" + PeerNetID + "\ncolrect|0|0|20|30\nposXY|" + x + "|" + y + "\nname|``" + (peer.Data as Player).DisplayName + "``\ncountry|" + (peer.Data as Player).Country + "|" + 244 + "\ninvis|0\nmstate|0\nsmstate|0\ntype|local\n"));
-                peer.Send(p.Data, 0, ENetPacketFlags.Reliable);
-                
                 PeerNetID++;
-                await peer.UpdateClothes();
                 await peer.SendInventory((peer.Data as Player).PlayerInventory);
             }
             catch (Exception ee)
@@ -418,6 +416,75 @@ namespace GTServer.Resources
                 }
             }
         }
+        public static async Task SendWorld2(this ENetPeer peer, World world)
+        {
+            var asdf =
+                    "0400000004A7379237BB2509E8E0EC04F8720B050000000000000000FBBB0000010000007D920100FDFDFDFD04000000040000000000000000000000070000000000";
+            (peer.Data as Player).ClothesUpdated = true;
+            string worldName = world.Name;
+            int xSize = world.Width;
+            int ySize = world.Height;
+            int square = xSize * ySize;
+            int nameLen = worldName.Length;
+            int alloc = 8 * square;
+            int total = 78 + nameLen + square + 24 + alloc;
+            byte[] data = new byte[total];
+            int s1 = 4, s3 = 8, zero = 0;
+            for (int i = 0; i < total; i++) data[i] = 0;
+            Memcpy(data, s1, 1);
+            Memcpy(data, 4, s1, 1);
+            Memcpy(data, 16, s3, 1);
+            Memcpy(data, 66, nameLen, 1);
+            Memcpy(data, 68, worldName, nameLen);
+            Memcpy(data, 68 + nameLen, xSize, 1);
+            Memcpy(data, 72 + nameLen, ySize, 1);
+            Memcpy(data, 76 + nameLen, square, 2);
+            var blc = asdf.Length / 2 + 14 + nameLen;
+            for (int i = 0; i < square; i++)
+            {
+                Memcpy(data, blc, zero, 2);
+                Memcpy(data, blc + 2, world.Items[i].Background, 2);
+                int type = 0x00000000;
+
+                Memcpy(data, blc + 4, type, 4);
+                blc += 8;
+            }
+            peer.Send(data, 0, ENetPacketFlags.Reliable);
+            for(int i = 0;i<square;i++)
+            {
+                PlayerMoving data2 = new PlayerMoving();
+                //data.packetType = 0x14;
+                data2.PacketType = 0x3;
+
+                //data.characterState = 0x924; // animation
+                data2.CharacterState = 0x0; // animation
+                data2.X = i % world.Width;
+                data2.Y = i / world.Height;
+                data2.PunchX = i % world.Width;
+                data2.PunchY = i / world.Width;
+                data2.XSpeed = 0;
+                data2.YSpeed = 0;
+                data2.NetID = -1;
+                data2.PlantingTree = world.Items[i].Foreground;
+                await SendPacketRaw(4, PlayerMovingPack(data2), 56, 0, peer);
+            }
+        }
+        public static void Memcpy(byte[] data,int middle, int len)
+        {
+            Array.Copy(BitConverter.GetBytes(middle), 0, data, 0, len);
+        }
+        public static void Memcpy(byte[] data, string middle, int len)
+        {
+            Array.Copy(Encoding.ASCII.GetBytes(middle), 0, data, 0, len);
+        }
+        public static void Memcpy(byte[] data,int sum, int middle, int len)
+        {
+            Array.Copy(BitConverter.GetBytes(middle), 0, data, sum, len);
+        }
+        public static void Memcpy(byte[] data, int sum, string middle, int len)
+        {
+            Array.Copy(Encoding.ASCII.GetBytes(middle), 0, data, sum, len);
+        }
         public static async Task SendWorld(this ENetPeer peer,World worldInfo)
         {
             try
@@ -425,7 +492,7 @@ namespace GTServer.Resources
                 (peer.Data as Player).ClothesUpdated = false;
                 var asdf =
                     "0400000004A7379237BB2509E8E0EC04F8720B050000000000000000FBBB0000010000007D920100FDFDFDFD04000000040000000000000000000000070000000000"; // 0400000004A7379237BB2509E8E0EC04F8720B050000000000000000FBBB0000010000007D920100FDFDFDFD04000000040000000000000000000000080000000000000000000000000000000000000000000000000000000000000048133A0500000000BEBB0000070000000000
-                var worldName = worldInfo.Name;
+                var worldName = worldInfo.Name.ToUpper();
                 var xSize = worldInfo.Width;
                 var ySize = worldInfo.Height;
                 var square = xSize * ySize;
@@ -467,8 +534,6 @@ namespace GTServer.Resources
                         Array.Copy(BitConverter.GetBytes(worldInfo.Items[i].Foreground), 0, data, blockPtr, 2);
                         long type = 0x00000000;
                         // type 1 = locked
-                        if (worldInfo.Items[i].IsWater)
-                            type |= 0x04000000;
                         Array.Copy(BitConverter.GetBytes(type), 0, data, blockPtr + 4, 4);
                     }
                     else
@@ -498,15 +563,8 @@ namespace GTServer.Resources
                 Array.Copy(BitConverter.GetBytes(smth), 0, data, dataLen - 4, 4);
                 peer.Send(data, 0, ENetPacketFlags.Reliable);
                 for (var i = 0; i < square; i++)
-                    //if (worldInfo.droppedItems[i].IsDrop)
-                    //{
-                    //    sendDrop(peer, (peer.Data as Player).netID, i % worldInfo.width, i / worldInfo.height, worldInfo.droppedItems[i].ItemID, worldInfo.droppedItems[i].ItemCount, 0);
-                    //}
-                    if (worldInfo.Items[i].Foreground == 0 || worldInfo.Items[i].Foreground == 2 ||
-                        worldInfo.Items[i].Foreground == 8 || worldInfo.Items[i].Foreground == 100)
-                    {
-                    }
-                    else if (worldInfo.Items[i].Foreground == 6) await UpdateDoor(peer, worldInfo.Items[i].Foreground, i % worldInfo.Width,i/worldInfo.Width, "fuck off");
+                {
+                    if (worldInfo.Items[i].Foreground == 6) await UpdateDoor(peer, worldInfo.Items[i].Foreground, i % worldInfo.Width, i / worldInfo.Width, "EXIT");
                     else
                     {
                         var data1 = new PlayerMoving
@@ -528,7 +586,7 @@ namespace GTServer.Resources
                         // animation
                         await SendPacketRaw(4, PlayerMovingPack(data1), 56, 0, peer);
                     }
-
+                }
                 var def = ItemsData[(peer.Data as Player).BackClothes];
                 if (def.Name.ToLower().Contains("wing") || def.Name.ToLower().Contains("cape")
                                                         || def.Name.ToLower().Contains("aura") ||
@@ -600,39 +658,65 @@ namespace GTServer.Resources
         {
             try
             {
-                foreach(var currentPeer in Peers)
+                for (int i = 0; i < Peers.Count; i++)
                 {
-                    if (currentPeer.State != ENetPeerState.Connected) continue;
-                    else if (peer.InWorld(currentPeer) && peer != currentPeer)
+                    ENetPeer currentPeer = Peers[i];
+                    if (Peers[i].State != ENetPeerState.Connected)
+                        continue;
+                    if (peer != currentPeer)
                     {
-                        var netIdS = (currentPeer.Data as Player).NetID.ToString();
-                        var p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"),
-                            "spawn|avatar\nnetID|" + netIdS + "\nuserID|" + (currentPeer.Data as Player).NetID +
-                            "\ncolrect|0|0|20|30\nposXY|" + (currentPeer.Data as Player).X + "|" +
-                            (currentPeer.Data as Player).Y + "\nname|``" +
-                            (currentPeer.Data as Player).DisplayName + "``\ncountry|" +
-                            (currentPeer.Data as Player).Country +
-                            "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((Player*)(server->peers[i].data))->tankIDName
-                                                                  //GamePacket p = packetEnd(appendString(appendString(createPacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS + "\nuserID|" + netIdS + "\ncolrect|0|0|20|30\nposXY|1600|1154\nname|``" + (currentPeer.Data as Player).displayName + "``\ncountry|" + (currentPeer.Data as Player).country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((Player*)(server->peers[i].data))->tankIDName
-                        peer.Send(p.Data, 0, ENetPacketFlags.Reliable);
+                        if (peer.InWorld(currentPeer))
+                        {
+                            string netIdS = (currentPeer.Data as Player).NetID.ToString();
+                            Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS + "\nuserID|" + (currentPeer.Data as Player).NetID.ToString() + "\ncolrect|0|0|20|30\nposXY|" + ((currentPeer.Data as Player).X).ToString() + "|" + ((currentPeer.Data as Player).Y).ToString() + "\nname|``" + (currentPeer.Data as Player).DisplayName + "``\ncountry|" + (currentPeer.Data as Player).Country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((PlayerInfo*)(server->peers[i].data))->tankIDName
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        //GamePacket p = packetEnd(appendString(appendString(createPacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS + "\nuserID|" + netIdS + "\ncolrect|0|0|20|30\nposXY|1600|1154\nname|``" + (currentPeer.Data as PlayerInfo).displayName + "``\ncountry|" + (currentPeer.Data as PlayerInfo).country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((PlayerInfo*)(server->peers[i].data))->tankIDName
+                            peer.Send(p.Data, 0, ENetPacketFlags.Reliable);
 
+                            string netIdS2 = (peer.Data as Player).NetID.ToString();
+                            Packet p2 = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS2 + "\nuserID|" + (peer.Data as Player).NetID.ToString() + "\ncolrect|0|0|20|30\nposXY|" + ((peer.Data as Player).X).ToString() + "|" + ((peer.Data as Player).Y).ToString() + "\nname|``" + (peer.Data as Player).DisplayName + "``\ncountry|" + (peer.Data as Player).Country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((PlayerInfo*)(server->peers[i].data))->tankIDName
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       //GamePacket p2 = packetEnd(appendString(appendString(createPacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS2 + "\nuserID|" + netIdS2 + "\ncolrect|0|0|20|30\nposXY|1600|1154\nname|``" + (peer.Data as PlayerInfo).displayName + "``\ncountry|" + (peer.Data as PlayerInfo).country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((PlayerInfo*)(server->peers[i].data))->tankIDName
+                            currentPeer.Send(p2.Data, 0, ENetPacketFlags.Reliable);
 
-                        var netIdS2 = (peer.Data as Player).NetID.ToString();
-                        var p2 = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"),
-                            "spawn|avatar\nnetID|" + netIdS2 + "\nuserID|" + (peer.Data as Player).NetID +
-                            "\ncolrect|0|0|20|30\nposXY|" + (peer.Data as Player).X + "|" +
-                            (peer.Data as Player).Y + "\nname|``" + (peer.Data as Player).DisplayName +
-                            "``\ncountry|" + (peer.Data as Player).Country +
-                            "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((Player*)(server->peers[i].data))->tankIDName
-                                                                  //GamePacket p2 = packetEnd(appendString(appendString(createPacket(), "OnSpawn"), "spawn|avatar\nnetID|" + netIdS2 + "\nuserID|" + netIdS2 + "\ncolrect|0|0|20|30\nposXY|1600|1154\nname|``" + (peer.Data as Player).displayName + "``\ncountry|" + (peer.Data as Player).country + "\ninvis|0\nmstate|0\nsmstate|0\n")); // ((Player*)(server->peers[i].data))->tankIDName
-                        currentPeer.Send(p2.Data, 0, ENetPacketFlags.Reliable);
-                        await Task.CompletedTask;
+                            //enet_host_flush(server);
+                        }
                     }
                 }
+                await Task.CompletedTask;
             }
-            catch(Exception e)
+            catch
             {
-                Console.WriteLine("OnPeerConnect ERROR! Message : " + e.Message);
+                Console.WriteLine("error in onpeerconnect");
+            }
+        }
+        public static async Task SendDrop(this ENetPeer peer, int netId, int x, int y, int item, int count,
+            byte specialEffect)
+        {
+            if (item >= 9000) return;
+            if (item < 0) return;
+
+            foreach (var currentPeer in Peers)
+            {
+                if (currentPeer.State != ENetPeerState.Connected)
+                    continue;
+                var data = new PlayerMoving
+                {
+                    PacketType = 14,
+                    X = x,
+                    Y = y,
+                    NetID = -1,
+                    PlantingTree = item
+                };
+                if (peer.InWorld(currentPeer))
+                {
+                    float val = count; // item count
+                    var val2 = specialEffect;
+
+                    var raw = PlayerMovingPack(data);
+                    Array.Copy(BitConverter.GetBytes(val), 0, raw, 16, 4);
+                    Array.Copy(BitConverter.GetBytes(val2), 0, raw, 1, 1);
+
+                    await SendPacketRaw(4, raw, 56, 0, currentPeer);
+                }
             }
         }
         public static async Task SendCreateGID(this ENetPeer peer)
@@ -646,12 +730,6 @@ namespace GTServer.Resources
                 .AddTextInput("discord", "Discord", "", 20)
                 .EndDialog("creategrowid", "Cancel", "Create!").Result;
             await peer.OnDialogRequest(dialog);
-        }
-        public static async Task OnSpawn(this ENetPeer peer,string text)
-        {
-            Packet p = PacketEnd(AppendString(AppendString(CreatePacket(), "OnSpawn"), text));
-            peer.Send(p.Data, 0, ENetPacketFlags.Reliable);
-            await Task.CompletedTask;
         }
         public static bool Is(this string str, string action)
         {
